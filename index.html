@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Media Tracker (GitHub Version)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script>
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') document.documentElement.classList.add('dark-mode');
+    </script>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h2>Media Tracker</h2>
+            <button class="theme-toggle" onclick="toggleTheme()">
+                <span id="themeIcon">☀️</span>
+            </button>
+        </div>
+
+        <div class="dashboard">
+            <div class="stat-card">
+                <h3>📚 ทั้งหมด</h3>
+                <span id="totalCount">0</span>
+            </div>
+            <div class="stat-card">
+                <h3>✅ จบแล้ว</h3>
+                <span id="finishedCount" class="stat-success">0</span>
+            </div>
+            <div class="stat-card">
+                <h3>⏳ ดองไว้</h3>
+                <span id="todoCount" class="stat-warning">0</span>
+            </div>
+        </div>
+
+        <div class="search-row">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 ค้นหา (ชื่อเต็ม/ตัวย่อ)..." onkeyup="handleSearch()">
+            </div>
+            <div class="sort-box">
+                <select id="sortInput" onchange="handleSort()">
+                    <option value="newest">🆕 ใหม่สุด</option>
+                    <option value="oldest">⏳ เก่าสุด</option>
+                    <option value="best">⭐ คะแนน</option>
+                    <option value="az">🔤 A-Z</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <input type="hidden" id="editId">
+
+            <div class="input-row">
+                <input type="text" id="titleInput" placeholder="ชื่อเรื่อง (Title)" style="flex: 2;">
+                <input type="text" id="linkInput" placeholder="🔗 ลิงก์ (URL)" style="flex: 1;">
+            </div>
+
+            <div class="input-row">
+                <select id="categoryInput">
+                    <option value="Game">🎮 เกม</option>
+                    <option value="Movie">🎬 หนัง</option>
+                    <option value="Anime">📺 อนิเมะ</option>
+                    <option value="Manga">📚 มังงะ</option>
+                </select>
+                <select id="statusInput">
+                    <option value="Planned">⏳ ดองไว้</option>
+                    <option value="Completed">✅ จบแล้ว</option>
+                    <option value="Dropped">❌ เทแล้ว</option>
+                    <option value="OnHold">⏸️ พักไว้</option>
+                </select>
+                <select id="ratingInput">
+                    <option value="0">คะแนน: -</option>
+                    <option value="5">⭐⭐⭐⭐⭐</option>
+                    <option value="4">⭐⭐⭐⭐</option>
+                    <option value="3">⭐⭐⭐</option>
+                    <option value="2">⭐⭐</option>
+                    <option value="1">⭐</option>
+                </select>
+            </div>
+
+            <div class="input-row">
+                <input type="number" id="currentProgressInput" placeholder="ตอนที่ดูถึง" min="0">
+                <input type="number" id="totalCountInput" placeholder="ตอนทั้งหมด" min="0">
+            </div>
+
+            <div class="input-row">
+                <textarea id="reviewInput" placeholder="📝 บันทึกความจำ..."></textarea>
+            </div>
+
+            <div class="button-row">
+                <button id="submitBtn" class="add-btn" onclick="handleFormSubmit()">Add to List</button>
+                <button id="cancelBtn" class="cancel-btn hidden" onclick="cancelEdit()">Cancel</button>
+            </div>
+        </div>
+
+        <div class="filters">
+            <button type="button" class="filter-btn active" onclick="setFilter(event, 'All')">ทั้งหมด</button>
+            <button type="button" class="filter-btn" onclick="setFilter(event, 'Progress')">ความคืบหน้า</button>
+            <button type="button" class="filter-btn" onclick="setFilter(event, 'Planned')">ที่ต้องเก็บ</button>
+            <button type="button" class="filter-btn" onclick="setFilter(event, 'Completed')">จบแล้ว</button>
+        </div>
+
+        <div id="mediaListContainer"></div>
+
+        <div class="backup-section" style="margin-top: 30px; text-align: center; padding-top: 20px; border-top: 1px dashed var(--border-color);">
+            <p style="font-size: 0.8em; opacity: 0.6; margin-bottom: 10px;">จัดการข้อมูล (Backup & Restore)</p>
+            <button onclick="exportData()" class="backup-btn">📤 Save Backup</button>
+            <button onclick="document.getElementById('importFile').click()" class="backup-btn">📥 Load Backup</button>
+            <input type="file" id="importFile" style="display:none" onchange="importData(this)" accept=".json">
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
