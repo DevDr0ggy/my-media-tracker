@@ -1,16 +1,95 @@
-/* script.js - Updated with Multi-Select Delete functionality */
+/* script.js - Updated with FULL Undo/Redo Memory Stack */
 
 const apiUrl = 'http://127.0.0.1:5000/items';
 let allItems = [];
 let currentFilter = 'All';
 let isEditing = false;
-let selectedItems = new Set(); // 🔥 ตัวแปรเก็บ ID ที่กำลังเลือก (ใช้ Set เพื่อความสะดวกในการเพิ่ม/ลบ)
+let selectedItems = new Set(); 
+
+// 🔥 ระบบความจำสำหรับ Undo/Redo
+let undoStack = [];
+let redoStack = [];
+
+function saveAction(action) {
+    undoStack.push(action);
+    if (undoStack.length > 30) undoStack.shift(); // จำย้อนหลังได้สูงสุด 30 รายการล่าสุด
+    redoStack = []; // ล้าง Redo ทิ้งเมื่อมีการกระทำใหม่
+    updateUndoRedoUI();
+}
+
+function updateUndoRedoUI() {
+    const undoBtn = document.getElementById('undoBtn');
+    const redoBtn = document.getElementById('redoBtn');
+    
+    // จัดการหน้าตาปุ่ม Undo
+    if(undoStack.length > 0) {
+        undoBtn.disabled = false;
+        undoBtn.classList.remove('opacity-30', 'cursor-not-allowed');
+    } else {
+        undoBtn.disabled = true;
+        undoBtn.classList.add('opacity-30', 'cursor-not-allowed');
+    }
+
+    // จัดการหน้าตาปุ่ม Redo
+    if(redoStack.length > 0) {
+        redoBtn.disabled = false;
+        redoBtn.classList.remove('opacity-30', 'cursor-not-allowed');
+    } else {
+        redoBtn.disabled = true;
+        redoBtn.classList.add('opacity-30', 'cursor-not-allowed');
+    }
+}
+
+async function triggerUndo() {
+    if (undoStack.length === 0) return;
+    const action = undoStack.pop();
+    redoStack.push(action); // ย้ายไปให้ Redo เตรียมจำ
+    updateUndoRedoUI();
+    await revertAction(action, true);
+    loadItems();
+}
+
+async function triggerRedo() {
+    if (redoStack.length === 0) return;
+    const action = redoStack.pop();
+    undoStack.push(action); // ย้ายกลับมาให้ Undo
+    updateUndoRedoUI();
+    await revertAction(action, false);
+    loadItems();
+}
+
+async function revertAction(action, isUndo) {
+    if (action.type === 'add') {
+        // ถ้า Undo การ Add = ลบทิ้ง / ถ้า Redo = สร้างใหม่
+        if (isUndo) await fetch(`${apiUrl}/${action.item.id}`, { method: 'DELETE' });
+        else await fetch(apiUrl, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(action.item) });
+    } 
+    else if (action.type === 'edit') {
+        // ดึงข้อมูลเก่าหรือใหม่ไปทับ
+        const payload = isUndo ? action.oldItem : action.newItem;
+        await fetch(`${apiUrl}/${payload.id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+    }
+    else if (action.type === 'delete') {
+        // ถ้า Undo การลบ = สร้างกลับมา / ถ้า Redo = ลบทิ้งอีกรอบ
+        if (isUndo) await fetch(apiUrl, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(action.item) });
+        else await fetch(`${apiUrl}/${action.item.id}`, { method: 'DELETE' });
+    }
+    else if (action.type === 'batch_delete') {
+        // การจัดการลบแบบกลุ่ม
+        if (isUndo) {
+            for (let item of action.items) {
+                await fetch(apiUrl, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(item) });
+            }
+        } else {
+            const ids = action.items.map(i => i.id);
+            await fetch(`${apiUrl}/batch-delete`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ ids }) });
+        }
+    }
+}
+// -------------------------------------------------------------
 
 // Heartbeat
-setInterval(() => {
-    fetch('http://127.0.0.1:5000/heartbeat', { method: 'POST' })
-        .catch(err => console.log('Server waiting...'));
-}, 1000);
+setInterval(() => { fetch('http://127.0.0.1:5000/heartbeat', { method: 'POST' }).catch(err => {}); }, 1000);
 
 // Get acronym for Smart Search
 function getAcronym(title) {
@@ -22,11 +101,17 @@ function getAcronym(title) {
 // Quick Add Progress
 async function quickProgress(id, current, total) {
     if (total > 0 && current >= total) return;
+    
+    const oldItem = allItems.find(x => x.id === id);
+    const newItem = { ...oldItem, current_progress: current + 1 };
+    
     await fetch(`${apiUrl}/${id}`, {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ current_progress: current + 1 })
     });
+    
+    saveAction({ type: 'edit', oldItem: oldItem, newItem: newItem }); // บันทึกความจำ
     loadItems();
 }
 
@@ -61,7 +146,7 @@ function animateValue(id, end) {
     }, stepTime);
 }
 
-// 🔥 ระบบควบคุม multi-select (Select All และ Delete Selected)
+// ระบบจัดการ UI แบบเลือกหลายรายการ
 function updateMultiSelectUI() {
     const controls = document.getElementById('multiSelectControls');
     const deleteBtn = document.getElementById('deleteSelectedBtn');
@@ -72,12 +157,10 @@ function updateMultiSelectUI() {
         controls.classList.remove('hidden');
         selectCountText.textContent = `เลือกแล้ว ${selectedItems.size} รายการ`;
         deleteBtn.removeAttribute('disabled');
-        // ตรวจสอบว่าเลือกครบทุกรายการที่กำลังแสดงหรือไม่ (เพื่อทำเครื่องหมาย Select All)
         const visibleItems = document.querySelectorAll('.item-checkbox');
         let allChecked = visibleItems.length > 0;
         visibleItems.forEach(cb => { if(!cb.checked) allChecked = false; });
         selectAllCheckbox.checked = allChecked;
-
     } else {
         controls.classList.add('hidden');
         selectAllCheckbox.checked = false;
@@ -86,11 +169,8 @@ function updateMultiSelectUI() {
 }
 
 function handleCheckboxChange(checkbox, id) {
-    if (checkbox.checked) {
-        selectedItems.add(id);
-    } else {
-        selectedItems.delete(id);
-    }
+    if (checkbox.checked) selectedItems.add(id);
+    else selectedItems.delete(id);
     updateMultiSelectUI();
 }
 
@@ -99,14 +179,12 @@ function toggleSelectAll(checkbox) {
     if (checkbox.checked) {
         visibleCheckboxes.forEach(cb => {
             cb.checked = true;
-            const id = parseInt(cb.dataset.id);
-            selectedItems.add(id);
+            selectedItems.add(parseInt(cb.dataset.id));
         });
     } else {
         visibleCheckboxes.forEach(cb => {
             cb.checked = false;
-            const id = parseInt(cb.dataset.id);
-            selectedItems.delete(id);
+            selectedItems.delete(parseInt(cb.dataset.id));
         });
     }
     updateMultiSelectUI();
@@ -114,37 +192,34 @@ function toggleSelectAll(checkbox) {
 
 async function deleteSelectedItems() {
     if (selectedItems.size === 0) return;
-    if (confirm(`ลบ ${selectedItems.size} รายการที่เลือกใช่ไหม? ข้อมูลจะไม่สามารถกู้คืนได้`)) {
-        try {
-            await fetch('http://127.0.0.1:5000/items/batch-delete', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ ids: Array.from(selectedItems) })
-            });
-            selectedItems.clear(); // ล้างรายการที่เลือกหลังจากลบสำเร็จ
-            loadItems(); // โหลดรายการใหม่
-        } catch (error) { console.error("Batch Delete Error:", error); }
+    if (confirm(`คุณต้องการลบ ${selectedItems.size} รายการที่เลือกใช่หรือไม่?\n(ลบแล้วกู้คืนไม่ได้นะ)`)) {
+        const deletedItems = allItems.filter(x => selectedItems.has(x.id)); // จำของที่จะลบก่อน
+        
+        await fetch('http://127.0.0.1:5000/items/batch-delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ ids: Array.from(selectedItems) })
+        });
+        
+        saveAction({ type: 'batch_delete', items: deletedItems }); // บันทึกความจำ
+        selectedItems.clear();
+        updateMultiSelectUI();
+        loadItems();
     }
 }
-// 🔥 -------------------------------------------------------------
 
 // Render the items to HTML
 function renderItems(items) {
     const listContainer = document.getElementById('mediaListContainer');
     listContainer.innerHTML = ''; 
-    // 🔥 ล้างค่า multi-select เก่าทุกครั้งที่เรนเดอร์ใหม่ (เช่น ตอนกรองข้อมูล)
     selectedItems.clear(); 
     updateMultiSelectUI();
 
     let filtered = items.filter(i => {
         let matchesStatus;
-        if (currentFilter === 'All') {
-            matchesStatus = true;
-        } else if (currentFilter === 'Progress') {
-            matchesStatus = (i.total_count > 0);
-        } else {
-            matchesStatus = (i.status === currentFilter);
-        }
+        if (currentFilter === 'All') matchesStatus = true;
+        else if (currentFilter === 'Progress') matchesStatus = (i.total_count > 0);
+        else matchesStatus = (i.status === currentFilter);
         
         const term = document.getElementById('searchInput').value.toLowerCase().trim();
         const itemAcronym = getAcronym(i.title);
@@ -173,13 +248,11 @@ function renderItems(items) {
             ul.className = 'category-list';
             groups[cat].forEach(item => {
                 const li = document.createElement('li');
-                // 🔥 แก้โครงสร้าง flex เพื่อให้ Checkbox, Cover, และ Info เรียงกันสวยงาม
                 li.className = "bg-itemLight dark:bg-itemDark mb-3 p-[15px] rounded-xl flex items-center gap-4 transition-all duration-200 shadow-sm border border-transparent hover:border-accent hover:dark:border-accentDark";
                 
                 const percent = item.total_count > 0 ? (item.current_progress / item.total_count) * 100 : 0;
                 let linkHtml = item.link ? `<a href="${item.link}" target="_blank" class="item-link" title="Open Link">🔗</a>` : '';
                 
-                // แปลง Tags ให้กลายเป็นปุ่ม Badge
                 let tagsHtml = '';
                 if (item.tags) {
                     const tagArray = item.tags.split(',').map(t => t.trim()).filter(t => t);
@@ -188,16 +261,13 @@ function renderItems(items) {
                     </div>`;
                 }
 
-                // รูปหน้าปก
                 let coverHtml = item.cover_image 
                     ? `<img src="${item.cover_image}" class="w-[85px] h-[120px] object-cover rounded-lg shadow-md shrink-0 border border-gray-200 dark:border-zinc-700" alt="Cover">` 
                     : `<div class="w-[85px] h-[120px] bg-black/5 dark:bg-white/5 rounded-lg flex items-center justify-center shrink-0 text-3xl border border-dashed border-gray-300 dark:border-zinc-700">📸</div>`;
 
                 li.innerHTML = `
                     <input type="checkbox" data-id="${item.id}" onchange="handleCheckboxChange(this, ${item.id})" class="item-checkbox w-6 h-6 shrink-0 cursor-pointer accent-accent dark:accent-accentDark rounded-md">
-                    
                     ${coverHtml}
-                    
                     <div class="item-info flex-1 min-w-0">
                         <div class="flex justify-between items-start">
                             <div>
@@ -213,14 +283,12 @@ function renderItems(items) {
                                 <button class="btn-icon btn-delete text-sm p-[6px_10px]" onclick="deleteItem(${item.id})">🗑️</button>
                             </div>
                         </div>
-                        
                         <div class="progress-text mt-2 text-[0.95em]">
                             Progress: ${item.current_progress} / ${item.total_count}
                             ${item.status !== 'Completed' ? `<button class="btn-plus shadow-sm hover:scale-110" onclick="quickProgress(${item.id}, ${item.current_progress}, ${item.total_count})">+</button>` : ''}
                         </div>
                         ${item.total_count > 0 ? `<div class="progress-container"><div class="progress-bar" style="width: ${percent}%"></div></div>` : ''}
                         ${item.review ? `<span class="item-review">"${item.review}"</span>` : ''}
-                        
                         <div class="text-[0.7em] opacity-50 mt-2 flex items-center gap-1">
                             🕒 Last updated: ${item.updated_at || item.created_at || 'Unknown'}
                         </div>
@@ -261,10 +329,19 @@ async function handleFormSubmit() {
     };
     
     const id = document.getElementById('editId').value;
-    const url = isEditing ? `${apiUrl}/${id}` : apiUrl;
-    const method = isEditing ? 'PUT' : 'POST';
     
-    await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+    if (isEditing) {
+        const oldItem = allItems.find(x => x.id == id);
+        data.id = parseInt(id); // แปะ ID เข้าไปด้วยเพื่อความสมบูรณ์
+        await fetch(`${apiUrl}/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        saveAction({ type: 'edit', oldItem: oldItem, newItem: data }); // บันทึกความจำ
+    } else {
+        const response = await fetch(apiUrl, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+        const resData = await response.json();
+        data.id = resData.id;
+        saveAction({ type: 'add', item: data }); // บันทึกความจำ
+    }
+    
     cancelEdit(); 
     loadItems();
 }
@@ -290,7 +367,6 @@ function startEditItem(id) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// Cancel Editing
 function cancelEdit() {
     isEditing = false;
     document.getElementById('editId').value = '';
@@ -302,7 +378,9 @@ function cancelEdit() {
 // Delete Item
 async function deleteItem(id) {
     if(confirm("ลบรายการนี้ใช่ไหม? ข้อมูลจะไม่สามารถกู้คืนได้")) { 
+        const deletedItem = allItems.find(x => x.id === id);
         await fetch(`${apiUrl}/${id}`, { method: 'DELETE' }); 
+        saveAction({ type: 'delete', item: deletedItem }); // บันทึกความจำ
         loadItems(); 
     }
 }
@@ -330,54 +408,38 @@ function toggleTheme() {
     else { icon.textContent = '☀️'; }
 })();
 
-async function triggerUndo() { loadItems(); }
-async function triggerRedo() { loadItems(); }
-
 // Initialize app
 loadItems();
+updateUndoRedoUI(); // ล็อกปุ่มไว้ตั้งแต่เริ่ม
 
+// ----------------- Backup / Restore Systems -----------------
 async function backupToMongo() {
     const btn = document.getElementById('backupBtn');
     const originalText = btn.innerHTML;
-    
-    // เปลี่ยนข้อความบนปุ่มตอนกำลังโหลด
     btn.innerHTML = '⏳ Backing up...';
     btn.disabled = true;
     btn.classList.add('opacity-70', 'cursor-not-allowed');
 
     try {
-        const response = await fetch('http://127.0.0.1:5000/backup/mongodb', {
-            method: 'POST'
-        });
+        const response = await fetch('http://127.0.0.1:5000/backup/mongodb', { method: 'POST' });
         const data = await response.json();
-        
-        if (response.ok) {
-            alert(`✅ สำรองข้อมูลขึ้น MongoDB Atlas สำเร็จ!\nข้อมูลทั้งหมด ${data.count} รายการ ถูกเก็บไว้ใน Cluster ของ MyScheduleBot แล้วครับ`);
-        } else {
-            alert(`❌ เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${data.error}`);
-        }
+        if (response.ok) alert(`✅ สำรองข้อมูลขึ้น MongoDB Atlas สำเร็จ!\nข้อมูลทั้งหมด ${data.count} รายการ ถูกเก็บไว้ใน Cluster ของ MyScheduleBot แล้วครับ`);
+        else alert(`❌ เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${data.error}`);
     } catch (error) {
         alert(`❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ โปรดตรวจสอบอินเทอร์เน็ต`);
         console.error("Backup Error:", error);
     } finally {
-        // เปลี่ยนปุ่มกลับสู่สภาพเดิม
         btn.innerHTML = originalText;
         btn.disabled = false;
         btn.classList.remove('opacity-70', 'cursor-not-allowed');
     }
 }
 
-// Restore from MongoDB Atlas function
 async function restoreFromMongo() {
-    // Confirm with user before overwriting local data
-    if (!confirm("⚠️ คำเตือน: การ Restore จะลบข้อมูลปัจจุบันในเครื่อง แล้วแทนที่ด้วยข้อมูลจาก Cloud ทั้งหมด\nคุณแน่ใจหรือไม่ที่จะดำเนินการต่อ?")) {
-        return;
-    }
+    if (!confirm("⚠️ คำเตือน: การ Restore จะลบข้อมูลปัจจุบันในเครื่อง แล้วแทนที่ด้วยข้อมูลจาก Cloud ทั้งหมด\nคุณแน่ใจหรือไม่ที่จะดำเนินการต่อ?")) return;
 
     const btn = document.getElementById('restoreBtn');
     const originalText = btn.innerHTML;
-    
-    // Change button state to loading
     btn.innerHTML = '⏳ Restoring...';
     btn.disabled = true;
     btn.classList.add('opacity-70', 'cursor-not-allowed');
@@ -385,10 +447,9 @@ async function restoreFromMongo() {
     try {
         const response = await fetch('http://127.0.0.1:5000/restore/mongodb', { method: 'POST' });
         const data = await response.json();
-        
         if (response.ok) {
             alert(`✅ กู้คืนข้อมูลสำเร็จ!\nดึงข้อมูลลงมาทั้งหมด ${data.count} รายการ เรียบร้อยแล้ว`);
-            loadItems(); // Refresh the list automatically
+            loadItems(); 
         } else {
             alert(`❌ ไม่สามารถกู้คืนได้: ${data.error || data.message}`);
         }
@@ -396,7 +457,6 @@ async function restoreFromMongo() {
         alert(`❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ โปรดตรวจสอบอินเทอร์เน็ต`);
         console.error("Restore Error:", error);
     } finally {
-        // Restore button state
         btn.innerHTML = originalText;
         btn.disabled = false;
         btn.classList.remove('opacity-70', 'cursor-not-allowed');

@@ -97,17 +97,32 @@ def add_item():
     data = request.get_json()
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = get_db_connection()
-    cursor = conn.execute(
-        '''INSERT INTO media_list 
-           (title, category, status, rating, link, review, current_progress, total_count, created_at, updated_at, cover_image, tags) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-        (data['title'], data['category'], data['status'], data.get('rating', 0), 
-         data.get('link', ''), data.get('review', ''), 
-         data.get('current_progress', 0), data.get('total_count', 0), 
-         current_time, current_time, data.get('cover_image', ''), data.get('tags', ''))
-    )
+    
+    # ถ้าระบบส่ง id กลับมาด้วย (เช่นตอน Undo ลบ) ให้ใช้ id เดิมเพื่อข้อมูลจะได้เป๊ะเหมือนเดิม
+    if 'id' in data and data['id']:
+        cursor = conn.execute(
+            '''INSERT INTO media_list 
+               (id, title, category, status, rating, link, review, current_progress, total_count, created_at, updated_at, cover_image, tags) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            (data['id'], data['title'], data['category'], data['status'], data.get('rating', 0), 
+             data.get('link', ''), data.get('review', ''), 
+             data.get('current_progress', 0), data.get('total_count', 0), 
+             data.get('created_at', current_time), data.get('updated_at', current_time), data.get('cover_image', ''), data.get('tags', ''))
+        )
+        new_id = data['id']
+    else:
+        cursor = conn.execute(
+            '''INSERT INTO media_list 
+               (title, category, status, rating, link, review, current_progress, total_count, created_at, updated_at, cover_image, tags) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            (data['title'], data['category'], data['status'], data.get('rating', 0), 
+             data.get('link', ''), data.get('review', ''), 
+             data.get('current_progress', 0), data.get('total_count', 0), 
+             current_time, current_time, data.get('cover_image', ''), data.get('tags', ''))
+        )
+        new_id = cursor.lastrowid
+        
     conn.commit()
-    new_id = cursor.lastrowid
     conn.close()
     return jsonify({"id": new_id, "message": "Item added!"}), 201
 
