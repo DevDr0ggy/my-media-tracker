@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Media Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: ['class', '.dark-mode'],
+            theme: {
+                extend: {
+                    colors: {
+                        bgLight: '#f8f9fa',
+                        bgDark: '#121212',
+                        containerLight: '#ffffff',
+                        containerDark: '#1e1e1e',
+                        itemLight: '#f1f3f5',
+                        itemDark: '#2c2c2c',
+                        accent: '#4a90e2',
+                        accentDark: '#bb86fc',
+                    },
+                    fontFamily: {
+                        sans: ['Prompt', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style type="text/tailwindcss">
+        @layer utilities {
+            /* Theme Toggle Animation */
+            .rotate-anim { animation: spin 0.5s ease-in-out; }
+
+            /* Active Filter Button State */
+            .filter-btn.active { 
+                @apply opacity-100 text-accent dark:text-accentDark border-b-[3px] border-accent dark:border-accentDark; 
+            }
+            
+            /* --- Styles for dynamically generated HTML from script.js --- */
+            .category-header { @apply mt-[25px] text-accent dark:text-accentDark border-b-2 border-gray-200 dark:border-zinc-700 pb-[5px] font-semibold text-lg; }
+            ul.category-list { @apply list-none p-0; }
+            .category-list li { @apply bg-itemLight dark:bg-itemDark mb-3 p-[15px] rounded-xl flex justify-between items-start transition-all duration-200; }
+            .item-info { @apply flex-1 flex flex-col mr-5 min-w-0; }
+            .item-title { @apply font-semibold text-[1.1em] break-words; }
+            .item-rating { @apply text-yellow-400 ml-2; }
+            .item-link { @apply no-underline text-accent dark:text-accentDark ml-2 text-[0.9em] align-middle hover:opacity-80 hover:scale-110 inline-block transition-transform; }
+            .progress-container { @apply w-full bg-black/10 dark:bg-white/10 rounded-xl h-[8px] my-[10px] overflow-hidden; }
+            .progress-bar { @apply h-full bg-accent dark:bg-accentDark transition-all duration-500 ease-in-out; }
+            .progress-text { @apply text-[0.85em] font-semibold mt-[5px] flex items-center; }
+            .btn-plus { @apply bg-accent dark:bg-accentDark text-white border-none rounded-full w-[22px] h-[22px] cursor-pointer ml-[10px] font-bold flex items-center justify-center; }
+            .item-review { @apply block mt-[10px] p-[10px_15px] bg-black/5 dark:bg-white/10 border-l-4 border-accent dark:border-accentDark rounded-xl text-[0.92em] italic opacity-90 break-words leading-relaxed; }
+            .actions { @apply flex gap-[6px] shrink-0; }
+            .btn-icon { @apply p-[8px_12px] text-white rounded-xl transition-all duration-100; }
+            .btn-edit { @apply bg-yellow-400 text-gray-900; }
+            .btn-delete { @apply bg-[#dc3545]; }
+        }
+
+        /* Custom Scrollbar for Dropdown if it gets too long */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
+    </style>
+
+    <script>
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.documentElement.classList.add('dark-mode');
+        }
+    </script>
+</head>
+
+<body class="font-sans bg-bgLight text-gray-800 dark:bg-bgDark dark:text-gray-200 m-0 p-5 transition-colors duration-300 flex justify-center min-h-screen">
+
+    <div class="fixed bottom-5 right-5 bg-containerLight dark:bg-containerDark p-2.5 rounded-[50px] shadow-[0_4px_15px_rgba(0,0,0,0.2)] flex gap-2.5 z-[1000] border border-gray-200 dark:border-zinc-800">
+        <button id="undoBtn" onclick="triggerUndo()" disabled class="px-[15px] py-2 bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-zinc-800 rounded-xl text-[0.9em] disabled:opacity-30 disabled:cursor-not-allowed">↩️ Undo (ย้อนกลับ)</button>
+        <button id="redoBtn" onclick="triggerRedo()" disabled class="px-[15px] py-2 bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-zinc-800 rounded-xl text-[0.9em] disabled:opacity-30 disabled:cursor-not-allowed">Redo (ทำซ้ำ) ↪️</button>
+    </div>
+
+    <div class="w-full max-w-[700px] bg-containerLight dark:bg-containerDark p-[30px] rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.1)] h-fit pb-[60px]">
+        
+        <div class="flex justify-between items-center mb-5">
+            <h2 class="text-2xl font-bold m-0">Media Tracker (บันทึกการดู/เล่น)</h2>
+            <button class="theme-toggle bg-bgLight dark:bg-bgDark border-2 border-accent dark:border-accentDark text-gray-800 dark:text-gray-200 w-10 h-10 rounded-full cursor-pointer text-[1.2rem] flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-[0_0_10px_rgba(0,0,0,0.1)]" onclick="toggleTheme()">
+                <span id="themeIcon">☀️</span>
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-[15px] mb-[25px]">
+            <div class="bg-bgLight dark:bg-bgDark p-[15px] rounded-xl border border-gray-200 dark:border-zinc-800 text-center">
+                <h3 class="m-0 text-[0.85em] opacity-70 font-semibold">📚 All Items (ทั้งหมด)</h3>
+                <span id="totalCount" class="block text-[1.6em] font-bold mt-[5px] text-gray-800 dark:text-gray-200">0</span>
+            </div>
+            <div class="bg-bgLight dark:bg-bgDark p-[15px] rounded-xl border border-gray-200 dark:border-zinc-800 text-center">
+                <h3 class="m-0 text-[0.85em] opacity-70 font-semibold">✅ Finished (จบแล้ว)</h3>
+                <span id="finishedCount" class="block text-[1.6em] font-bold mt-[5px] text-[#28a745]">0</span>
+            </div>
+            <div class="bg-bgLight dark:bg-bgDark p-[15px] rounded-xl border border-gray-200 dark:border-zinc-800 text-center">
+                <h3 class="m-0 text-[0.85em] opacity-70 font-semibold">⏳ To Do (ดองไว้)</h3>
+                <span id="todoCount" class="block text-[1.6em] font-bold mt-[5px] text-[#f0ad4e]">0</span>
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-[10px] mb-[15px]">
+            <div class="flex-[2]">
+                <input type="text" id="searchInput" placeholder="🔍 ค้นหาชื่อเรื่อง หรือตัวย่อ..." onkeyup="handleSearch()" class="w-full p-3 border border-gray-300 dark:border-zinc-700 rounded-xl bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 font-sans focus:outline-none focus:border-accent dark:focus:border-accentDark focus:ring-[3px] focus:ring-accent/20 transition-all">
+            </div>
+            <div class="flex-[1]">
+                <select id="sortInput" onchange="handleSort()" class="w-full p-3 border border-gray-300 dark:border-zinc-700 rounded-xl bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 font-sans focus:outline-none focus:border-accent dark:focus:border-accentDark focus:ring-[3px] focus:ring-accent/20 transition-all">
+                    <option value="newest">🆕 ใหม่สุดไปเก่าสุด</option>
+                    <option value="oldest">⏳ เก่าสุดไปใหม่สุด</option>
+                    <option value="best">⭐ คะแนนสูงสุด</option>
+                    <option value="az">🔤 ชื่อ A-Z</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="mb-[20px]">
+            <input type="hidden" id="editId">
+
+            <div class="flex flex-col sm:flex-row gap-[10px] mb-[10px]">
+                <input type="text" id="titleInput" placeholder="ชื่อเรื่อง (Title)" class="flex-[2] w-full p-3 border border-gray-300 dark:border-zinc-700 rounded-xl bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 font-sans focus:outline-none focus:border-accent dark:focus:border-accentDark focus:ring-[3px] focus:ring-accent/20 transition-all">
+                <input type="text" id="linkInput" placeholder="🔗 ลิงก์ (URL)" class="flex-[1] w-full p-3 border border-gray-300 dark:border-zinc-700 rounded-xl bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 font-sans focus:outline-none focus:border-accent dark:focus:border-accentDark focus:ring-[3px] focus:ring-accent/20 transition-all">
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-[10px] mb-[10px]">
+                <select id="categoryInput" class="w-full p-3 border border-gray-300 dark:border-zinc-700 rounded-xl bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 font-sans focus:outline-none focus:border-accent dark:focus:border-accentDark focus:ring-[3px] focus:ring-accent/20 transition-all">
+                    <option value="Game">🎮 Game (เกม)</option>
+                    <option value="Movie">🎬 Movie (ภาพยนตร์)</option>
+                    <option value="Anime">📺 Anime (อนิเมะ)</option>
+                    <option value="Manga">📚 Manga (มังงะ)</option>
+                </select>
+                <select id="statusInput" class="w-full p-3 border border-gray-300 dark:border-zinc-700 rounded-xl bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 font-sans focus:outline-none focus:border-accent dark:focus:border-accentDark focus:ring-[3px] focus:ring-accent/20 transition-all">
+                    <option value="Planned">⏳ Plan to Watch (ดองไว้)</option>
+                    <option value="Completed">✅ Completed (จบแล้ว)</option>
+                    <option value="Dropped">❌ Dropped (เท/เลิกดู)</option>
+                    <option value="OnHold">⏸️ On Hold (พักไว้ก่อน)</option>
+                </select>
+                <select id="ratingInput" class="w-full p-3 border border-gray-300 dark:border-zinc-700 rounded-xl bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 font-sans focus:outline-none focus:border-accent dark:focus:border-accentDark focus:ring-[3px] focus:ring-accent/20 transition-all">
+                    <option value="0">Rating (คะแนน): -</option>
+                    <option value="5">⭐⭐⭐⭐⭐ (5 - ดีเยี่ยม)</option>
+                    <option value="4">⭐⭐⭐⭐ (4 - ดีมาก)</option>
+                    <option value="3">⭐⭐⭐ (3 - ปานกลาง)</option>
+                    <option value="2">⭐⭐ (2 - พอใช้)</option>
+                    <option value="1">⭐ (1 - แย่)</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-[10px] mb-[10px]">
+                <input type="number" id="currentProgressInput" placeholder="ตอนที่ดูถึง" min="0" class="w-full p-3 border border-gray-300 dark:border-zinc-700 rounded-xl bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 font-sans focus:outline-none focus:border-accent dark:focus:border-accentDark focus:ring-[3px] focus:ring-accent/20 transition-all">
+                <input type="number" id="totalCountInput" placeholder="ตอนทั้งหมด" min="0" class="w-full p-3 border border-gray-300 dark:border-zinc-700 rounded-xl bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 font-sans focus:outline-none focus:border-accent dark:focus:border-accentDark focus:ring-[3px] focus:ring-accent/20 transition-all">
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-[10px] mb-[10px]">
+                <textarea id="reviewInput" placeholder="📝 เขียนบันทึกความจำ หรือรีวิวสั้นๆ... (Optional)" class="w-full p-3 border border-gray-300 dark:border-zinc-700 rounded-xl bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 font-sans focus:outline-none focus:border-accent dark:focus:border-accentDark focus:ring-[3px] focus:ring-accent/20 transition-all resize-y min-h-[80px]"></textarea>
+            </div>
+
+            <div class="flex gap-[10px]">
+                <button id="submitBtn" class="flex-1 p-[12px] bg-accent dark:bg-accentDark text-white text-[16px] font-semibold rounded-xl hover:opacity-90 transition-opacity font-sans" onclick="handleFormSubmit()">Add to List (เพิ่มรายการ)</button>
+                <button id="cancelBtn" class="hidden px-[20px] py-[12px] bg-[#6c757d] text-white rounded-xl hover:bg-gray-600 transition-colors font-sans" onclick="cancelEdit()">Cancel (ยกเลิก)</button>
+            </div>
+        </div>
+
+        <div class="flex gap-[10px] mb-[20px] border-b border-gray-200 dark:border-zinc-700 pb-[10px] overflow-x-auto">
+            <button type="button" class="filter-btn active bg-transparent text-gray-800 dark:text-gray-200 px-[12px] py-[8px] opacity-60 font-semibold transition-all whitespace-nowrap" onclick="setFilter(event, 'All')">ทั้งหมด</button>
+            <button type="button" class="filter-btn bg-transparent text-gray-800 dark:text-gray-200 px-[12px] py-[8px] opacity-60 font-semibold transition-all whitespace-nowrap" onclick="setFilter(event, 'Progress')">ความคืบหน้า</button>
+            <button type="button" class="filter-btn bg-transparent text-gray-800 dark:text-gray-200 px-[12px] py-[8px] opacity-60 font-semibold transition-all whitespace-nowrap" onclick="setFilter(event, 'Planned')">ที่ต้องเก็บ</button>
+            <button type="button" class="filter-btn bg-transparent text-gray-800 dark:text-gray-200 px-[12px] py-[8px] opacity-60 font-semibold transition-all whitespace-nowrap" onclick="setFilter(event, 'Completed')">จบแล้ว</button>
+        </div>
+
+        <div id="mediaListContainer"></div>
+    </div>
+
+    <script src="script.js"></script>
+	<script src="dropdown.js"></script>
+</body>
+
+</html>

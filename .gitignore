@@ -1,0 +1,16 @@
+# --- Environments ---
+.idea/
+csdev/
+
+# --- Python cache files ---
+__pycache__/
+*.pyc
+*.pyo
+
+# --- Editor settings (Optional but recommended) ---
+.vscode/
+
+# --- Other files ---
+media_tracker.db
+mt.bat
+start_server.bat
