@@ -170,26 +170,44 @@ def batch_delete_items():
     
     return jsonify({"message": f"Deleted {deleted_count} items", "deleted_ids": ids_to_delete}), 200
 
-# 🔥 Route สำหรับ Backup ขึ้น MongoDB Atlas (เข้า Cluster: MyScheduleBot)
-@app.route('/backup/mongodb', methods=['POST'])
-def backup_to_mongodb():
+# 🔥 Route for Restore from MongoDB Atlas
+@app.route('/restore/mongodb', methods=['POST'])
+def restore_from_mongodb():
     try:
-        # 1. ดึงข้อมูลทั้งหมดจาก SQLite ในเครื่องคอมเรา
+        # 1. Connect to MongoDB Atlas
+        client = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
+        db = client['MediaTracker']
+        collection = db['backups']
+        
+        # 2. Fetch all backed up items (exclude the MongoDB '_id' field)
+        backup_items = list(collection.find({}, {'_id': 0}))
+        
+        if not backup_items:
+            return jsonify({"message": "No backup data found on Atlas"}), 404
+            
+        # 3. Connect to local SQLite
         conn = get_db_connection()
-        items = [dict(row) for row in conn.execute('SELECT * FROM media_list').fetchall()]
+        
+        # 4. Wipe current local data to prevent duplicates
+        conn.execute('DELETE FROM media_list')
+        
+        # 5. Insert backup data into local SQLite
+        for item in backup_items:
+            conn.execute(
+                '''INSERT INTO media_list 
+                   (id, title, category, status, rating, link, review, current_progress, total_count, cover_image, tags, created_at, updated_at) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (item.get('id'), item.get('title'), item.get('category'), item.get('status'), 
+                 item.get('rating'), item.get('link'), item.get('review'), 
+                 item.get('current_progress'), item.get('total_count'), 
+                 item.get('cover_image'), item.get('tags'), 
+                 item.get('created_at'), item.get('updated_at'))
+            )
+        
+        conn.commit()
         conn.close()
         
-        # 2. เชื่อมต่อ MongoDB Atlas 
-        client = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
-        db = client['MediaTracker'] # สร้าง Database ใหม่ชื่อ MediaTracker จะได้ไม่ปนกับบอท
-        collection = db['backups']  # สร้าง Collection ชื่อ backups
-        
-        # 3. ล้างข้อมูลเก่าบนคลาวด์ทิ้ง แล้วเอาข้อมูลใหม่ล่าสุดใส่เข้าไปแทนที่
-        collection.delete_many({})
-        if items: 
-            collection.insert_many(items)
-        
-        return jsonify({"message": "Backup successful!", "count": len(items)}), 200
+        return jsonify({"message": "Restore successful!", "count": len(backup_items)}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

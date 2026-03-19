@@ -336,7 +336,6 @@ async function triggerRedo() { loadItems(); }
 // Initialize app
 loadItems();
 
-// Backup to MongoDB Atlas function
 async function backupToMongo() {
     const btn = document.getElementById('backupBtn');
     const originalText = btn.innerHTML;
@@ -366,32 +365,38 @@ async function backupToMongo() {
         btn.disabled = false;
         btn.classList.remove('opacity-70', 'cursor-not-allowed');
     }
-}// Backup to MongoDB Atlas function
-async function backupToMongo() {
-    const btn = document.getElementById('backupBtn');
+}
+
+// Restore from MongoDB Atlas function
+async function restoreFromMongo() {
+    // Confirm with user before overwriting local data
+    if (!confirm("⚠️ คำเตือน: การ Restore จะลบข้อมูลปัจจุบันในเครื่อง แล้วแทนที่ด้วยข้อมูลจาก Cloud ทั้งหมด\nคุณแน่ใจหรือไม่ที่จะดำเนินการต่อ?")) {
+        return;
+    }
+
+    const btn = document.getElementById('restoreBtn');
     const originalText = btn.innerHTML;
     
-    // เปลี่ยนข้อความบนปุ่มตอนกำลังโหลด
-    btn.innerHTML = '⏳ Backing up...';
+    // Change button state to loading
+    btn.innerHTML = '⏳ Restoring...';
     btn.disabled = true;
     btn.classList.add('opacity-70', 'cursor-not-allowed');
 
     try {
-        const response = await fetch('http://127.0.0.1:5000/backup/mongodb', {
-            method: 'POST'
-        });
+        const response = await fetch('http://127.0.0.1:5000/restore/mongodb', { method: 'POST' });
         const data = await response.json();
         
         if (response.ok) {
-            alert(`✅ สำรองข้อมูลขึ้น MongoDB Atlas สำเร็จ!\nข้อมูลทั้งหมด ${data.count} รายการ ถูกเก็บไว้ใน Cluster ของ MyScheduleBot แล้วครับ`);
+            alert(`✅ กู้คืนข้อมูลสำเร็จ!\nดึงข้อมูลลงมาทั้งหมด ${data.count} รายการ เรียบร้อยแล้ว`);
+            loadItems(); // Refresh the list automatically
         } else {
-            alert(`❌ เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${data.error}`);
+            alert(`❌ ไม่สามารถกู้คืนได้: ${data.error || data.message}`);
         }
     } catch (error) {
         alert(`❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ โปรดตรวจสอบอินเทอร์เน็ต`);
-        console.error("Backup Error:", error);
+        console.error("Restore Error:", error);
     } finally {
-        // เปลี่ยนปุ่มกลับสู่สภาพเดิม
+        // Restore button state
         btn.innerHTML = originalText;
         btn.disabled = false;
         btn.classList.remove('opacity-70', 'cursor-not-allowed');

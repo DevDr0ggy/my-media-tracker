@@ -81,6 +81,9 @@
     <div class="fixed bottom-5 right-5 bg-containerLight dark:bg-containerDark p-2.5 rounded-[50px] shadow-[0_4px_15px_rgba(0,0,0,0.2)] flex gap-2.5 z-[1000] border border-gray-200 dark:border-zinc-800">
         <button id="undoBtn" onclick="triggerUndo()" disabled class="px-[15px] py-2 bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-zinc-800 rounded-xl text-[0.9em] disabled:opacity-30 disabled:cursor-not-allowed">↩️ Undo (ย้อนกลับ)</button>
         <button id="redoBtn" onclick="triggerRedo()" disabled class="px-[15px] py-2 bg-bgLight dark:bg-bgDark text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-zinc-800 rounded-xl text-[0.9em] disabled:opacity-30 disabled:cursor-not-allowed">Redo (ทำซ้ำ) ↪️</button>
+		<button id="restoreBtn" onclick="restoreFromMongo()" class="px-[20px] py-2 bg-[#17a2b8] text-white border-none rounded-xl text-[0.95em] font-semibold hover:bg-[#138496] transition-all flex items-center gap-2 shadow-md">
+            ⬇️ Restore
+        </button>
 		<button id="backupBtn" onclick="backupToMongo()" class="px-[20px] py-2 bg-[#28a745] text-white border-none rounded-xl text-[0.95em] font-semibold hover:bg-[#218838] transition-all flex items-center gap-2 shadow-md">
             ☁️ Backup to Atlas
         </button>
