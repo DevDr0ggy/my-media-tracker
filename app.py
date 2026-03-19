@@ -1,11 +1,17 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import sqlite3
 from datetime import datetime
+from pymongo import MongoClient
+from dotenv import load_dotenv
+import sqlite3
 import threading
 import time
 import os
 import webbrowser
+import certifi
+
+load_dotenv()
+MONGO_URI = os.getenv("MONGO_URI")
 
 # Setup Flask
 app = Flask(__name__, static_folder='.', static_url_path='')
@@ -163,6 +169,29 @@ def batch_delete_items():
     conn.close()
     
     return jsonify({"message": f"Deleted {deleted_count} items", "deleted_ids": ids_to_delete}), 200
+
+# 🔥 Route สำหรับ Backup ขึ้น MongoDB Atlas (เข้า Cluster: MyScheduleBot)
+@app.route('/backup/mongodb', methods=['POST'])
+def backup_to_mongodb():
+    try:
+        # 1. ดึงข้อมูลทั้งหมดจาก SQLite ในเครื่องคอมเรา
+        conn = get_db_connection()
+        items = [dict(row) for row in conn.execute('SELECT * FROM media_list').fetchall()]
+        conn.close()
+        
+        # 2. เชื่อมต่อ MongoDB Atlas 
+        client = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
+        db = client['MediaTracker'] # สร้าง Database ใหม่ชื่อ MediaTracker จะได้ไม่ปนกับบอท
+        collection = db['backups']  # สร้าง Collection ชื่อ backups
+        
+        # 3. ล้างข้อมูลเก่าบนคลาวด์ทิ้ง แล้วเอาข้อมูลใหม่ล่าสุดใส่เข้าไปแทนที่
+        collection.delete_many({})
+        if items: 
+            collection.insert_many(items)
+        
+        return jsonify({"message": "Backup successful!", "count": len(items)}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     webbrowser.open("http://127.0.0.1:5000")

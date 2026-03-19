@@ -335,3 +335,65 @@ async function triggerRedo() { loadItems(); }
 
 // Initialize app
 loadItems();
+
+// Backup to MongoDB Atlas function
+async function backupToMongo() {
+    const btn = document.getElementById('backupBtn');
+    const originalText = btn.innerHTML;
+    
+    // เปลี่ยนข้อความบนปุ่มตอนกำลังโหลด
+    btn.innerHTML = '⏳ Backing up...';
+    btn.disabled = true;
+    btn.classList.add('opacity-70', 'cursor-not-allowed');
+
+    try {
+        const response = await fetch('http://127.0.0.1:5000/backup/mongodb', {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(`✅ สำรองข้อมูลขึ้น MongoDB Atlas สำเร็จ!\nข้อมูลทั้งหมด ${data.count} รายการ ถูกเก็บไว้ใน Cluster ของ MyScheduleBot แล้วครับ`);
+        } else {
+            alert(`❌ เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${data.error}`);
+        }
+    } catch (error) {
+        alert(`❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ โปรดตรวจสอบอินเทอร์เน็ต`);
+        console.error("Backup Error:", error);
+    } finally {
+        // เปลี่ยนปุ่มกลับสู่สภาพเดิม
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        btn.classList.remove('opacity-70', 'cursor-not-allowed');
+    }
+}// Backup to MongoDB Atlas function
+async function backupToMongo() {
+    const btn = document.getElementById('backupBtn');
+    const originalText = btn.innerHTML;
+    
+    // เปลี่ยนข้อความบนปุ่มตอนกำลังโหลด
+    btn.innerHTML = '⏳ Backing up...';
+    btn.disabled = true;
+    btn.classList.add('opacity-70', 'cursor-not-allowed');
+
+    try {
+        const response = await fetch('http://127.0.0.1:5000/backup/mongodb', {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(`✅ สำรองข้อมูลขึ้น MongoDB Atlas สำเร็จ!\nข้อมูลทั้งหมด ${data.count} รายการ ถูกเก็บไว้ใน Cluster ของ MyScheduleBot แล้วครับ`);
+        } else {
+            alert(`❌ เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${data.error}`);
+        }
+    } catch (error) {
+        alert(`❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ โปรดตรวจสอบอินเทอร์เน็ต`);
+        console.error("Backup Error:", error);
+    } finally {
+        // เปลี่ยนปุ่มกลับสู่สภาพเดิม
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        btn.classList.remove('opacity-70', 'cursor-not-allowed');
+    }
+}
