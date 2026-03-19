@@ -179,6 +179,17 @@
             <button type="button" class="filter-btn bg-transparent text-gray-800 dark:text-gray-200 px-[12px] py-[8px] opacity-60 font-semibold transition-all whitespace-nowrap" onclick="setFilter(event, 'Completed')">จบแล้ว</button>
         </div>
 
+		<div id="multiSelectControls" class="bg-itemLight dark:bg-itemDark p-4 mb-3 rounded-xl border border-gray-200 dark:border-zinc-700 shadow-sm flex items-center justify-between gap-3 hidden">
+            <div class="flex items-center gap-3">
+                <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" class="w-5 h-5 cursor-pointer accent-accent dark:accent-accentDark rounded-md">
+                <label for="selectAllCheckbox" class="font-semibold text-gray-800 dark:text-gray-200 select-none">
+                    <span id="selectCountText">เลือกแล้ว 0 รายการ</span> (Select All)
+                </label>
+            </div>
+            <button id="deleteSelectedBtn" onclick="deleteSelectedItems()" class="px-5 py-2.5 bg-[#dc3545] text-white rounded-xl text-sm font-semibold hover:opacity-80 transition-all shadow-md flex items-center gap-2" disabled>
+                🗑️ ลบรายการที่เลือก (Delete Selected)
+            </button>
+        </div>
         <div id="mediaListContainer"></div>
     </div>
 

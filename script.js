@@ -1,9 +1,10 @@
-/* script.js - Updated with Cover Image, Tags, and Last Updated Date */
+/* script.js - Updated with Multi-Select Delete functionality */
 
 const apiUrl = 'http://127.0.0.1:5000/items';
 let allItems = [];
 let currentFilter = 'All';
 let isEditing = false;
+let selectedItems = new Set(); // 🔥 ตัวแปรเก็บ ID ที่กำลังเลือก (ใช้ Set เพื่อความสะดวกในการเพิ่ม/ลบ)
 
 // Heartbeat
 setInterval(() => {
@@ -60,10 +61,80 @@ function animateValue(id, end) {
     }, stepTime);
 }
 
+// 🔥 ระบบควบคุม multi-select (Select All และ Delete Selected)
+function updateMultiSelectUI() {
+    const controls = document.getElementById('multiSelectControls');
+    const deleteBtn = document.getElementById('deleteSelectedBtn');
+    const selectCountText = document.getElementById('selectCountText');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    
+    if (selectedItems.size > 0) {
+        controls.classList.remove('hidden');
+        selectCountText.textContent = `เลือกแล้ว ${selectedItems.size} รายการ`;
+        deleteBtn.removeAttribute('disabled');
+        // ตรวจสอบว่าเลือกครบทุกรายการที่กำลังแสดงหรือไม่ (เพื่อทำเครื่องหมาย Select All)
+        const visibleItems = document.querySelectorAll('.item-checkbox');
+        let allChecked = visibleItems.length > 0;
+        visibleItems.forEach(cb => { if(!cb.checked) allChecked = false; });
+        selectAllCheckbox.checked = allChecked;
+
+    } else {
+        controls.classList.add('hidden');
+        selectAllCheckbox.checked = false;
+        deleteBtn.setAttribute('disabled', 'disabled');
+    }
+}
+
+function handleCheckboxChange(checkbox, id) {
+    if (checkbox.checked) {
+        selectedItems.add(id);
+    } else {
+        selectedItems.delete(id);
+    }
+    updateMultiSelectUI();
+}
+
+function toggleSelectAll(checkbox) {
+    const visibleCheckboxes = document.querySelectorAll('.item-checkbox');
+    if (checkbox.checked) {
+        visibleCheckboxes.forEach(cb => {
+            cb.checked = true;
+            const id = parseInt(cb.dataset.id);
+            selectedItems.add(id);
+        });
+    } else {
+        visibleCheckboxes.forEach(cb => {
+            cb.checked = false;
+            const id = parseInt(cb.dataset.id);
+            selectedItems.delete(id);
+        });
+    }
+    updateMultiSelectUI();
+}
+
+async function deleteSelectedItems() {
+    if (selectedItems.size === 0) return;
+    if (confirm(`ลบ ${selectedItems.size} รายการที่เลือกใช่ไหม? ข้อมูลจะไม่สามารถกู้คืนได้`)) {
+        try {
+            await fetch('http://127.0.0.1:5000/items/batch-delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ ids: Array.from(selectedItems) })
+            });
+            selectedItems.clear(); // ล้างรายการที่เลือกหลังจากลบสำเร็จ
+            loadItems(); // โหลดรายการใหม่
+        } catch (error) { console.error("Batch Delete Error:", error); }
+    }
+}
+// 🔥 -------------------------------------------------------------
+
 // Render the items to HTML
 function renderItems(items) {
     const listContainer = document.getElementById('mediaListContainer');
     listContainer.innerHTML = ''; 
+    // 🔥 ล้างค่า multi-select เก่าทุกครั้งที่เรนเดอร์ใหม่ (เช่น ตอนกรองข้อมูล)
+    selectedItems.clear(); 
+    updateMultiSelectUI();
 
     let filtered = items.filter(i => {
         let matchesStatus;
@@ -77,7 +148,6 @@ function renderItems(items) {
         
         const term = document.getElementById('searchInput').value.toLowerCase().trim();
         const itemAcronym = getAcronym(i.title);
-        // 🔥 ให้รองรับการค้นหาจาก Tags ด้วย
         const itemTags = i.tags ? i.tags.toLowerCase() : "";
         const matchesSearch = i.title.toLowerCase().includes(term) || itemAcronym.includes(term) || itemTags.includes(term);
         
@@ -103,13 +173,13 @@ function renderItems(items) {
             ul.className = 'category-list';
             groups[cat].forEach(item => {
                 const li = document.createElement('li');
-                // แก้ให้รองรับรูปภาพด้านซ้ายมือ (flex gap)
-                li.className = "bg-itemLight dark:bg-itemDark mb-3 p-[15px] rounded-xl flex gap-4 items-start transition-all duration-200 shadow-sm";
+                // 🔥 แก้โครงสร้าง flex เพื่อให้ Checkbox, Cover, และ Info เรียงกันสวยงาม
+                li.className = "bg-itemLight dark:bg-itemDark mb-3 p-[15px] rounded-xl flex items-center gap-4 transition-all duration-200 shadow-sm border border-transparent hover:border-accent hover:dark:border-accentDark";
                 
                 const percent = item.total_count > 0 ? (item.current_progress / item.total_count) * 100 : 0;
                 let linkHtml = item.link ? `<a href="${item.link}" target="_blank" class="item-link" title="Open Link">🔗</a>` : '';
                 
-                // แปลง Tags ให้กลายเป็นปุ่ม Badge สวยๆ
+                // แปลง Tags ให้กลายเป็นปุ่ม Badge
                 let tagsHtml = '';
                 if (item.tags) {
                     const tagArray = item.tags.split(',').map(t => t.trim()).filter(t => t);
@@ -118,13 +188,16 @@ function renderItems(items) {
                     </div>`;
                 }
 
-                // รูปหน้าปก (ถ้าไม่มีให้แสดงไอคอนแทน)
+                // รูปหน้าปก
                 let coverHtml = item.cover_image 
                     ? `<img src="${item.cover_image}" class="w-[85px] h-[120px] object-cover rounded-lg shadow-md shrink-0 border border-gray-200 dark:border-zinc-700" alt="Cover">` 
                     : `<div class="w-[85px] h-[120px] bg-black/5 dark:bg-white/5 rounded-lg flex items-center justify-center shrink-0 text-3xl border border-dashed border-gray-300 dark:border-zinc-700">📸</div>`;
 
                 li.innerHTML = `
+                    <input type="checkbox" data-id="${item.id}" onchange="handleCheckboxChange(this, ${item.id})" class="item-checkbox w-6 h-6 shrink-0 cursor-pointer accent-accent dark:accent-accentDark rounded-md">
+                    
                     ${coverHtml}
+                    
                     <div class="item-info flex-1 min-w-0">
                         <div class="flex justify-between items-start">
                             <div>
@@ -135,18 +208,18 @@ function renderItems(items) {
                                 </span>
                                 ${tagsHtml}
                             </div>
-                            <div class="actions ml-2">
-                                <button class="btn-icon btn-edit text-sm" onclick="startEditItem(${item.id})">✏️</button>
-                                <button class="btn-icon btn-delete text-sm" onclick="deleteItem(${item.id})">🗑️</button>
+                            <div class="actions ml-2 flex gap-1.5">
+                                <button class="btn-icon btn-edit text-sm p-[6px_10px]" onclick="startEditItem(${item.id})">✏️</button>
+                                <button class="btn-icon btn-delete text-sm p-[6px_10px]" onclick="deleteItem(${item.id})">🗑️</button>
                             </div>
                         </div>
                         
-                        <div class="progress-text mt-2">
+                        <div class="progress-text mt-2 text-[0.95em]">
                             Progress: ${item.current_progress} / ${item.total_count}
                             ${item.status !== 'Completed' ? `<button class="btn-plus shadow-sm hover:scale-110" onclick="quickProgress(${item.id}, ${item.current_progress}, ${item.total_count})">+</button>` : ''}
                         </div>
                         ${item.total_count > 0 ? `<div class="progress-container"><div class="progress-bar" style="width: ${percent}%"></div></div>` : ''}
-                        ${item.review ? `<span class="item-review">" ${item.review} "</span>` : ''}
+                        ${item.review ? `<span class="item-review">"${item.review}"</span>` : ''}
                         
                         <div class="text-[0.7em] opacity-50 mt-2 flex items-center gap-1">
                             🕒 Last updated: ${item.updated_at || item.created_at || 'Unknown'}
@@ -228,7 +301,7 @@ function cancelEdit() {
 
 // Delete Item
 async function deleteItem(id) {
-    if(confirm("ลบรายการนี้ใช่ไหม?")) { 
+    if(confirm("ลบรายการนี้ใช่ไหม? ข้อมูลจะไม่สามารถกู้คืนได้")) { 
         await fetch(`${apiUrl}/${id}`, { method: 'DELETE' }); 
         loadItems(); 
     }

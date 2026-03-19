@@ -55,7 +55,10 @@ def init_db():
             review TEXT,
             current_progress INTEGER DEFAULT 0,
             total_count INTEGER DEFAULT 0,
-            created_at TEXT
+            cover_image TEXT DEFAULT '',
+            tags TEXT DEFAULT '',
+            created_at TEXT,
+            updated_at TEXT
         )
     ''')
     
@@ -140,6 +143,26 @@ def delete_item(id):
     conn.commit()
     conn.close()
     return jsonify({"message": "Deleted!"})
+
+# 🔥 New Route for Multi-Delete
+@app.route('/items/batch-delete', methods=['POST'])
+def batch_delete_items():
+    data = request.get_json()
+    ids_to_delete = data.get('ids', [])
+    if not ids_to_delete:
+        return jsonify({"message": "No IDs provided"}), 400
+        
+    conn = get_db_connection()
+    # Prepare the SQL query with IN clause
+    placeholders = ','.join(['?' for _ in ids_to_delete])
+    query = f"DELETE FROM media_list WHERE id IN ({placeholders})"
+    
+    cursor = conn.execute(query, ids_to_delete)
+    deleted_count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    
+    return jsonify({"message": f"Deleted {deleted_count} items", "deleted_ids": ids_to_delete}), 200
 
 if __name__ == '__main__':
     webbrowser.open("http://127.0.0.1:5000")
