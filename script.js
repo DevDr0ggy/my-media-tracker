@@ -1,6 +1,7 @@
 /* script.js - Updated with FULL Undo/Redo Memory Stack */
 
-const apiUrl = 'http://127.0.0.1:5000/items';
+// const apiUrl = 'http://127.0.0.1:5000/items';
+const apiUrl = '/items';
 let allItems = [];
 let currentFilter = 'All';
 let isEditing = false;
@@ -89,7 +90,7 @@ async function revertAction(action, isUndo) {
 // -------------------------------------------------------------
 
 // Heartbeat
-setInterval(() => { fetch('http://127.0.0.1:5000/heartbeat', { method: 'POST' }).catch(err => {}); }, 1000);
+// setInterval(() => { fetch('http://127.0.0.1:5000/heartbeat', { method: 'POST' }).catch(err => {}); }, 1000);
 
 // Get acronym for Smart Search
 function getAcronym(title) {
@@ -413,52 +414,52 @@ loadItems();
 updateUndoRedoUI(); // ล็อกปุ่มไว้ตั้งแต่เริ่ม
 
 // ----------------- Backup / Restore Systems -----------------
-async function backupToMongo() {
-    const btn = document.getElementById('backupBtn');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '⏳ Backing up...';
-    btn.disabled = true;
-    btn.classList.add('opacity-70', 'cursor-not-allowed');
+// async function backupToMongo() {
+//     const btn = document.getElementById('backupBtn');
+//     const originalText = btn.innerHTML;
+//     btn.innerHTML = '⏳ Backing up...';
+//     btn.disabled = true;
+//     btn.classList.add('opacity-70', 'cursor-not-allowed');
 
-    try {
-        const response = await fetch('http://127.0.0.1:5000/backup/mongodb', { method: 'POST' });
-        const data = await response.json();
-        if (response.ok) alert(`✅ สำรองข้อมูลขึ้น MongoDB Atlas สำเร็จ!\nข้อมูลทั้งหมด ${data.count} รายการ ถูกเก็บไว้ใน Cluster ของ MyScheduleBot แล้วครับ`);
-        else alert(`❌ เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${data.error}`);
-    } catch (error) {
-        alert(`❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ โปรดตรวจสอบอินเทอร์เน็ต`);
-        console.error("Backup Error:", error);
-    } finally {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-        btn.classList.remove('opacity-70', 'cursor-not-allowed');
-    }
-}
+//     try {
+//         const response = await fetch('http://127.0.0.1:5000/backup/mongodb', { method: 'POST' });
+//         const data = await response.json();
+//         if (response.ok) alert(`✅ สำรองข้อมูลขึ้น MongoDB Atlas สำเร็จ!\nข้อมูลทั้งหมด ${data.count} รายการ ถูกเก็บไว้ใน Cluster ของ MyScheduleBot แล้วครับ`);
+//         else alert(`❌ เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${data.error}`);
+//     } catch (error) {
+//         alert(`❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ โปรดตรวจสอบอินเทอร์เน็ต`);
+//         console.error("Backup Error:", error);
+//     } finally {
+//         btn.innerHTML = originalText;
+//         btn.disabled = false;
+//         btn.classList.remove('opacity-70', 'cursor-not-allowed');
+//     }
+// }
 
-async function restoreFromMongo() {
-    if (!confirm("⚠️ คำเตือน: การ Restore จะลบข้อมูลปัจจุบันในเครื่อง แล้วแทนที่ด้วยข้อมูลจาก Cloud ทั้งหมด\nคุณแน่ใจหรือไม่ที่จะดำเนินการต่อ?")) return;
+// async function restoreFromMongo() {
+//     if (!confirm("⚠️ คำเตือน: การ Restore จะลบข้อมูลปัจจุบันในเครื่อง แล้วแทนที่ด้วยข้อมูลจาก Cloud ทั้งหมด\nคุณแน่ใจหรือไม่ที่จะดำเนินการต่อ?")) return;
 
-    const btn = document.getElementById('restoreBtn');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '⏳ Restoring...';
-    btn.disabled = true;
-    btn.classList.add('opacity-70', 'cursor-not-allowed');
+//     const btn = document.getElementById('restoreBtn');
+//     const originalText = btn.innerHTML;
+//     btn.innerHTML = '⏳ Restoring...';
+//     btn.disabled = true;
+//     btn.classList.add('opacity-70', 'cursor-not-allowed');
 
-    try {
-        const response = await fetch('http://127.0.0.1:5000/restore/mongodb', { method: 'POST' });
-        const data = await response.json();
-        if (response.ok) {
-            alert(`✅ กู้คืนข้อมูลสำเร็จ!\nดึงข้อมูลลงมาทั้งหมด ${data.count} รายการ เรียบร้อยแล้ว`);
-            loadItems(); 
-        } else {
-            alert(`❌ ไม่สามารถกู้คืนได้: ${data.error || data.message}`);
-        }
-    } catch (error) {
-        alert(`❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ โปรดตรวจสอบอินเทอร์เน็ต`);
-        console.error("Restore Error:", error);
-    } finally {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-        btn.classList.remove('opacity-70', 'cursor-not-allowed');
-    }
-}
+//     try {
+//         const response = await fetch('http://127.0.0.1:5000/restore/mongodb', { method: 'POST' });
+//         const data = await response.json();
+//         if (response.ok) {
+//             alert(`✅ กู้คืนข้อมูลสำเร็จ!\nดึงข้อมูลลงมาทั้งหมด ${data.count} รายการ เรียบร้อยแล้ว`);
+//             loadItems(); 
+//         } else {
+//             alert(`❌ ไม่สามารถกู้คืนได้: ${data.error || data.message}`);
+//         }
+//     } catch (error) {
+//         alert(`❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ โปรดตรวจสอบอินเทอร์เน็ต`);
+//         console.error("Restore Error:", error);
+//     } finally {
+//         btn.innerHTML = originalText;
+//         btn.disabled = false;
+//         btn.classList.remove('opacity-70', 'cursor-not-allowed');
+//     }
+// }
