@@ -1,24 +1,24 @@
-/* script.js - Full Fixed Version + Heartbeat */
+/* script.js - Updated with Cover Image, Tags, and Last Updated Date */
 
 const apiUrl = 'http://127.0.0.1:5000/items';
 let allItems = [];
 let currentFilter = 'All';
 let isEditing = false;
 
-// 🔥 ส่งสัญญาณชีพ (Heartbeat) ไปหา Python ทุก 1 วินาที
+// Heartbeat
 setInterval(() => {
     fetch('http://127.0.0.1:5000/heartbeat', { method: 'POST' })
         .catch(err => console.log('Server waiting...'));
 }, 1000);
 
-// ฟังก์ชันดึงตัวย่อ (Smart Search)
+// Get acronym for Smart Search
 function getAcronym(title) {
     if (!title) return "";
     const matches = title.match(/\b(\w)/g); 
     return matches ? matches.join('').toLowerCase() : "";
 }
 
-// เพิ่มตอนด่วน (+)
+// Quick Add Progress
 async function quickProgress(id, current, total) {
     if (total > 0 && current >= total) return;
     await fetch(`${apiUrl}/${id}`, {
@@ -29,6 +29,7 @@ async function quickProgress(id, current, total) {
     loadItems();
 }
 
+// Load data from backend
 async function loadItems() {
     try {
         const response = await fetch(apiUrl);
@@ -59,12 +60,12 @@ function animateValue(id, end) {
     }, stepTime);
 }
 
+// Render the items to HTML
 function renderItems(items) {
     const listContainer = document.getElementById('mediaListContainer');
     listContainer.innerHTML = ''; 
 
     let filtered = items.filter(i => {
-        // 1. กรองตามสถานะหรือความคืบหน้า
         let matchesStatus;
         if (currentFilter === 'All') {
             matchesStatus = true;
@@ -74,15 +75,15 @@ function renderItems(items) {
             matchesStatus = (i.status === currentFilter);
         }
         
-        // 2. ค้นหา
         const term = document.getElementById('searchInput').value.toLowerCase().trim();
         const itemAcronym = getAcronym(i.title);
-        const matchesSearch = i.title.toLowerCase().includes(term) || itemAcronym.includes(term);
+        // 🔥 ให้รองรับการค้นหาจาก Tags ด้วย
+        const itemTags = i.tags ? i.tags.toLowerCase() : "";
+        const matchesSearch = i.title.toLowerCase().includes(term) || itemAcronym.includes(term) || itemTags.includes(term);
         
         return matchesStatus && matchesSearch;
     });
 
-    // Sorting
     const sortType = document.getElementById('sortInput').value;
     filtered.sort((a,b) => {
         if (sortType === 'best') return (b.rating || 0) - (a.rating || 0);
@@ -91,7 +92,6 @@ function renderItems(items) {
         return b.id - a.id;
     });
 
-    // Grouping
     const groups = {};
     filtered.forEach(i => { if(!groups[i.category]) groups[i.category]=[]; groups[i.category].push(i); });
 
@@ -103,28 +103,54 @@ function renderItems(items) {
             ul.className = 'category-list';
             groups[cat].forEach(item => {
                 const li = document.createElement('li');
-                const percent = item.total_count > 0 ? (item.current_progress / item.total_count) * 100 : 0;
+                // แก้ให้รองรับรูปภาพด้านซ้ายมือ (flex gap)
+                li.className = "bg-itemLight dark:bg-itemDark mb-3 p-[15px] rounded-xl flex gap-4 items-start transition-all duration-200 shadow-sm";
                 
-                // 🔥 สร้างลิงก์ HTML ถ้ามี URL
+                const percent = item.total_count > 0 ? (item.current_progress / item.total_count) * 100 : 0;
                 let linkHtml = item.link ? `<a href="${item.link}" target="_blank" class="item-link" title="Open Link">🔗</a>` : '';
+                
+                // แปลง Tags ให้กลายเป็นปุ่ม Badge สวยๆ
+                let tagsHtml = '';
+                if (item.tags) {
+                    const tagArray = item.tags.split(',').map(t => t.trim()).filter(t => t);
+                    tagsHtml = `<div class="flex flex-wrap gap-1 mt-1.5 mb-2">
+                        ${tagArray.map(tag => `<span class="bg-accent/10 dark:bg-accentDark/10 text-accent dark:text-accentDark text-[0.75em] px-2 py-0.5 rounded-md font-semibold border border-accent/20 dark:border-accentDark/20">${tag}</span>`).join('')}
+                    </div>`;
+                }
+
+                // รูปหน้าปก (ถ้าไม่มีให้แสดงไอคอนแทน)
+                let coverHtml = item.cover_image 
+                    ? `<img src="${item.cover_image}" class="w-[85px] h-[120px] object-cover rounded-lg shadow-md shrink-0 border border-gray-200 dark:border-zinc-700" alt="Cover">` 
+                    : `<div class="w-[85px] h-[120px] bg-black/5 dark:bg-white/5 rounded-lg flex items-center justify-center shrink-0 text-3xl border border-dashed border-gray-300 dark:border-zinc-700">📸</div>`;
 
                 li.innerHTML = `
-                    <div class="item-info">
-                        <span class="item-title">
-                            ${item.title} 
-                            <span class="item-rating">${'⭐'.repeat(item.rating)}</span>
-                            ${linkHtml}
-                        </span>
-                        <div class="progress-text">
+                    ${coverHtml}
+                    <div class="item-info flex-1 min-w-0">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="item-title text-[1.2em]">
+                                    ${item.title} 
+                                    <span class="item-rating text-sm">${'⭐'.repeat(item.rating)}</span>
+                                    ${linkHtml}
+                                </span>
+                                ${tagsHtml}
+                            </div>
+                            <div class="actions ml-2">
+                                <button class="btn-icon btn-edit text-sm" onclick="startEditItem(${item.id})">✏️</button>
+                                <button class="btn-icon btn-delete text-sm" onclick="deleteItem(${item.id})">🗑️</button>
+                            </div>
+                        </div>
+                        
+                        <div class="progress-text mt-2">
                             Progress: ${item.current_progress} / ${item.total_count}
-                            ${item.status !== 'Completed' ? `<button class="btn-plus" onclick="quickProgress(${item.id}, ${item.current_progress}, ${item.total_count})">+</button>` : ''}
+                            ${item.status !== 'Completed' ? `<button class="btn-plus shadow-sm hover:scale-110" onclick="quickProgress(${item.id}, ${item.current_progress}, ${item.total_count})">+</button>` : ''}
                         </div>
                         ${item.total_count > 0 ? `<div class="progress-container"><div class="progress-bar" style="width: ${percent}%"></div></div>` : ''}
-                        ${item.review ? `<span class="item-review">"${item.review}"</span>` : ''}
-                    </div>
-                    <div class="actions">
-                        <button class="btn-icon btn-edit" onclick="startEditItem(${item.id})">✏️</button>
-                        <button class="btn-icon btn-delete" onclick="deleteItem(${item.id})">🗑️</button>
+                        ${item.review ? `<span class="item-review">" ${item.review} "</span>` : ''}
+                        
+                        <div class="text-[0.7em] opacity-50 mt-2 flex items-center gap-1">
+                            🕒 Last updated: ${item.updated_at || item.created_at || 'Unknown'}
+                        </div>
                     </div>
                 `;
                 ul.appendChild(li);
@@ -143,30 +169,40 @@ function setFilter(event, f) {
     renderItems(allItems); 
 }
 
+// Handle Form Submission
 async function handleFormSubmit() {
     const title = document.getElementById('titleInput').value.trim();
     if(!title) return;
+    
     const data = {
         title,
         category: document.getElementById('categoryInput').value,
         status: document.getElementById('statusInput').value,
         rating: parseInt(document.getElementById('ratingInput').value),
         link: document.getElementById('linkInput').value.trim(),
+        cover_image: document.getElementById('coverInput').value.trim(),
+        tags: document.getElementById('tagsInput').value.trim(),
         review: document.getElementById('reviewInput').value.trim(),
         current_progress: parseInt(document.getElementById('currentProgressInput').value) || 0,
         total_count: parseInt(document.getElementById('totalCountInput').value) || 0
     };
+    
     const id = document.getElementById('editId').value;
     const url = isEditing ? `${apiUrl}/${id}` : apiUrl;
     const method = isEditing ? 'PUT' : 'POST';
+    
     await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-    cancelEdit(); loadItems();
+    cancelEdit(); 
+    loadItems();
 }
 
+// Edit Item functionality
 function startEditItem(id) {
     const i = allItems.find(x => x.id === id);
     document.getElementById('titleInput').value = i.title;
     document.getElementById('linkInput').value = i.link || ''; 
+    document.getElementById('coverInput').value = i.cover_image || ''; 
+    document.getElementById('tagsInput').value = i.tags || ''; 
     document.getElementById('currentProgressInput').value = i.current_progress;
     document.getElementById('totalCountInput').value = i.total_count;
     document.getElementById('categoryInput').value = i.category;
@@ -174,28 +210,34 @@ function startEditItem(id) {
     document.getElementById('ratingInput').value = i.rating;
     document.getElementById('reviewInput').value = i.review || '';
     document.getElementById('editId').value = i.id;
+    
     isEditing = true;
-    document.getElementById('submitBtn').textContent = "Update";
+    document.getElementById('submitBtn').textContent = "Update (อัปเดตข้อมูล)";
     document.getElementById('cancelBtn').classList.remove('hidden');
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// Cancel Editing
 function cancelEdit() {
     isEditing = false;
     document.getElementById('editId').value = '';
     document.querySelectorAll('input, textarea').forEach(x => x.value = '');
-    document.getElementById('submitBtn').textContent = "Add to List";
+    document.getElementById('submitBtn').textContent = "Add to List (เพิ่มรายการ)";
     document.getElementById('cancelBtn').classList.add('hidden');
 }
 
+// Delete Item
 async function deleteItem(id) {
-    if(confirm("ลบรายการนี้ใช่ไหม?")) { await fetch(`${apiUrl}/${id}`, { method: 'DELETE' }); loadItems(); }
+    if(confirm("ลบรายการนี้ใช่ไหม?")) { 
+        await fetch(`${apiUrl}/${id}`, { method: 'DELETE' }); 
+        loadItems(); 
+    }
 }
 
 function handleSearch() { renderItems(allItems); }
 function handleSort() { renderItems(allItems); }
 
-// ฟังก์ชันธีม พร้อม Animation
+// Theme Toggle System
 function toggleTheme() {
     const htmlElement = document.documentElement;
     const isDark = htmlElement.classList.toggle('dark-mode');
@@ -205,22 +247,18 @@ function toggleTheme() {
 
     const btn = document.querySelector('.theme-toggle');
     btn.classList.add('rotate-anim');
-    setTimeout(() => {
-        btn.classList.remove('rotate-anim');
-    }, 500);
+    setTimeout(() => { btn.classList.remove('rotate-anim'); }, 500);
 }
 
 (function initTheme() {
     const savedTheme = localStorage.getItem('theme');
     const icon = document.getElementById('themeIcon');
-    if (savedTheme === 'dark') {
-        icon.textContent = '🌙';
-    } else {
-        icon.textContent = '☀️';
-    }
+    if (savedTheme === 'dark') { icon.textContent = '🌙'; } 
+    else { icon.textContent = '☀️'; }
 })();
 
 async function triggerUndo() { loadItems(); }
 async function triggerRedo() { loadItems(); }
 
+// Initialize app
 loadItems();
