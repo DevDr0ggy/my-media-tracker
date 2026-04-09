@@ -95,8 +95,11 @@ async function revertAction(action, isUndo) {
 // Get acronym for Smart Search
 function getAcronym(title) {
     if (!title) return "";
-    const matches = title.match(/\b(\w)/g); 
-    return matches ? matches.join('').toLowerCase() : "";
+    const matches = title.match(/(?:^|\s)(\S)/g);
+    if (matches) {
+        return matches.map(char => char.trim().toLowerCase()).join('');
+    }
+    return "";
 }
 
 // Quick Add Progress
@@ -196,13 +199,13 @@ async function deleteSelectedItems() {
     if (confirm(`คุณต้องการลบ ${selectedItems.size} รายการที่เลือกใช่หรือไม่?\n(ลบแล้วกู้คืนไม่ได้นะ)`)) {
         const deletedItems = allItems.filter(x => selectedItems.has(x.id)); // จำของที่จะลบก่อน
         
-        await fetch('http://127.0.0.1:5000/items/batch-delete', {
+        await fetch(`${apiUrl}/batch-delete`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ ids: Array.from(selectedItems) })
         });
         
-        saveAction({ type: 'batch_delete', items: deletedItems }); // บันทึกความจำ
+        saveAction({ type: 'batch_delete', items: deletedItems }); 
         selectedItems.clear();
         updateMultiSelectUI();
         loadItems();
@@ -251,9 +254,10 @@ function renderItems(items) {
                 const li = document.createElement('li');
                 li.className = "bg-itemLight dark:bg-itemDark mb-3 p-[15px] rounded-xl flex items-center gap-4 transition-all duration-200 shadow-sm border border-transparent hover:border-accent hover:dark:border-accentDark";
                 
+                // Calculate percentage only if total_count is greater than 0
                 const percent = item.total_count > 0 ? (item.current_progress / item.total_count) * 100 : 0;
                 let linkHtml = item.link ? `<a href="${item.link}" target="_blank" class="item-link" title="Open Link">🔗</a>` : '';
-                
+				
                 let tagsHtml = '';
                 if (item.tags) {
                     const tagArray = item.tags.split(',').map(t => t.trim()).filter(t => t);
@@ -261,11 +265,14 @@ function renderItems(items) {
                         ${tagArray.map(tag => `<span class="bg-accent/10 dark:bg-accentDark/10 text-accent dark:text-accentDark text-[0.75em] px-2 py-0.5 rounded-md font-semibold border border-accent/20 dark:border-accentDark/20">${tag}</span>`).join('')}
                     </div>`;
                 }
-
+				
                 let coverHtml = item.cover_image 
                     ? `<img src="${item.cover_image}" class="w-[85px] h-[120px] object-cover rounded-lg shadow-md shrink-0 border border-gray-200 dark:border-zinc-700" alt="Cover">` 
                     : `<div class="w-[85px] h-[120px] bg-black/5 dark:bg-white/5 rounded-lg flex items-center justify-center shrink-0 text-3xl border border-dashed border-gray-300 dark:border-zinc-700">📸</div>`;
-
+				
+                // Check if the item is ongoing (total_count is 0) to change the display text
+                let displayTotal = item.total_count > 0 ? item.total_count : "? (Ongoing)";
+				
                 li.innerHTML = `
                     <input type="checkbox" data-id="${item.id}" onchange="handleCheckboxChange(this, ${item.id})" class="item-checkbox w-6 h-6 shrink-0 cursor-pointer accent-accent dark:accent-accentDark rounded-md">
                     ${coverHtml}
@@ -284,11 +291,14 @@ function renderItems(items) {
                                 <button class="btn-icon btn-delete text-sm p-[6px_10px]" onclick="deleteItem(${item.id})">🗑️</button>
                             </div>
                         </div>
+						
                         <div class="progress-text mt-2 text-[0.95em]">
-                            Progress: ${item.current_progress} / ${item.total_count}
+                            Progress: ${item.current_progress} / ${displayTotal}
                             ${item.status !== 'Completed' ? `<button class="btn-plus shadow-sm hover:scale-110" onclick="quickProgress(${item.id}, ${item.current_progress}, ${item.total_count})">+</button>` : ''}
                         </div>
+						
                         ${item.total_count > 0 ? `<div class="progress-container"><div class="progress-bar" style="width: ${percent}%"></div></div>` : ''}
+						
                         ${item.review ? `<span class="item-review">"${item.review}"</span>` : ''}
                         <div class="text-[0.7em] opacity-50 mt-2 flex items-center gap-1">
                             🕒 Last updated: ${item.updated_at || item.created_at || 'Unknown'}
