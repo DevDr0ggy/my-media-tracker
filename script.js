@@ -299,7 +299,7 @@ function renderItems(items) {
 						
                         ${item.total_count > 0 ? `<div class="progress-container"><div class="progress-bar" style="width: ${percent}%"></div></div>` : ''}
 						
-                        ${item.review ? `<span class="item-review">"${item.review}"</span>` : ''}
+                        ${item.review ? `<span class="item-review">" ${item.review} "</span>` : ''}
                         <div class="text-[0.7em] opacity-50 mt-2 flex items-center gap-1">
                             🕒 Last updated: ${item.updated_at || item.created_at || 'Unknown'}
                         </div>
